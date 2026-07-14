@@ -29,22 +29,17 @@ object BleConnectionManager: NotificationForwarder{
             Log.i("BLE", "status=$status newState=$newState")
             when (newState) {
                 BluetoothProfile.STATE_CONNECTED -> {
+                    if(gatt == null) return
                     Log.i("BLE_Manager", "Connected to device")
                     Log.i("BLE Manager", "State changed : ${connectionState.name} -> ${BleConnectionState.CONNECTED.name}")
                     connectionState = BleConnectionState.CONNECTED
                     retryCount = 0
-                    Log.i("BLE Manager", "State changed : ${connectionState.name} -> ${BleConnectionState.MTU_REQUESTED.name}")
-                    connectionState = BleConnectionState.MTU_REQUESTED
-                    val success = gatt?.requestMtu(BleServiceParams.maxMTU) ?: false
+                    // Check return type
+                    var success = gatt?.discoverServices() ?: false
                     if(!success) {
-                        Log.i("BLE Manager", "State changed : ${connectionState.name} -> ${BleConnectionState.MTU_REJECTED.name}")
-                        connectionState = BleConnectionState.MTU_REJECTED
-                        // Check return type
-                        gatt?.discoverServices()
-                        Log.i("BLE Manager", "State changed : ${connectionState.name} -> ${BleConnectionState.SUBSCRIPTION_STARTED.name}")
-                        connectionState = BleConnectionState.SUBSCRIPTION_STARTED
+                        Log.i("BLE Manager", "Service discovery failed, disconnect")
+                        disconnectDevice(gatt)                        
                     }
-                    
                 }
                 BluetoothProfile.STATE_DISCONNECTED -> {
                     Log.i("BLE_Manager", "Disconnected from device")
@@ -66,22 +61,13 @@ object BleConnectionManager: NotificationForwarder{
                 // then resume work
                 dataChannel.pause()
                 dataChannel.updateMtu(effectiveMtu)
-                // Already subscribed just updated MTU
-                if(connectionState!= BleConnectionState.READY) {
-                    // Check return
-                    gatt?.discoverServices()
-                }
-                else {
+                if(connectionState == BleConnectionState.READY) {
                     dataChannel.resume()
-                }  
+                }
             }
             else {
                 Log.i("BLE Manager", "State changed : ${connectionState.name} -> ${BleConnectionState.MTU_REJECTED.name}")
-                connectionState = BleConnectionState.MTU_REJECTED
-                // Check return 
-                gatt?.discoverServices()
-                Log.i("BLE Manager", "State changed : ${connectionState.name} -> ${BleConnectionState.SUBSCRIPTION_STARTED.name}")
-                connectionState = BleConnectionState.SUBSCRIPTION_STARTED            
+                connectionState = BleConnectionState.MTU_REJECTED        
             }
         }
 
@@ -134,6 +120,13 @@ object BleConnectionManager: NotificationForwarder{
                 val parentCharUuid = descriptor.characteristic.uuid
                 Log.d("BLE", "Successfully subscribed to notifications for: $parentCharUuid")
                 Log.i("BLE Manager", "State changed : ${connectionState.name} -> ${BleConnectionState.READY.name}")
+                var success = gatt?.requestMtu(BleServiceParams.maxMTU) ?: false
+                Log.i("BLE Manager", "State changed : ${connectionState.name} -> ${BleConnectionState.MTU_REQUESTED.name}")
+                connectionState = BleConnectionState.MTU_REQUESTED
+                if(!success) {
+                    Log.i("BLE Manager", "State changed : ${connectionState.name} -> ${BleConnectionState.MTU_REJECTED.name}")
+                    connectionState = BleConnectionState.MTU_REJECTED                        
+                } 
                 connectionState = BleConnectionState.READY
                 dataChannel.resume() 
             }
@@ -147,14 +140,17 @@ object BleConnectionManager: NotificationForwarder{
     // Android 13+
     fun connect(context: Context, device: BluetoothDevice) {
         if(connectionState == BleConnectionState.DISCONNECTED) {
-            appContext = context.applicationContext
-
-            mainHandler.post {
-                bluetoothGatt = device.connectGatt(context, false, gattCallback)
-            }
+            Log.i("BleManager", "Connecting to peripheral")
         }
         else { 
             Log.e("BleManager", "Already in connected state")
+            disconnectDevice(bluetoothGatt)
+            
+        }
+        appContext = context.applicationContext
+
+        mainHandler.post {
+            bluetoothGatt = device.connectGatt(context, false, gattCallback)
         }
     }
 
@@ -255,11 +251,8 @@ object BleConnectionManager: NotificationForwarder{
         if(device != null) {
             dataChannel.pause()
             closeGatt()
-            handleRetryLogic(device)
         }
-        else {
-            Log.i("BLE Manager", "State changed : ${connectionState.name} -> ${BleConnectionState.DISCONNECTED.name}")
-            connectionState = BleConnectionState.DISCONNECTED
-        }
+        connectionState = BleConnectionState.DISCONNECTED
+        Log.i("BLE Manager", "State changed : ${connectionState.name} -> ${BleConnectionState.DISCONNECTED.name}")
     }
 }

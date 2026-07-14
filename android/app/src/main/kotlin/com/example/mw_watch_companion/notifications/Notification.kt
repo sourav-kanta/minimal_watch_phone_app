@@ -1,11 +1,14 @@
-package com.example.mw_watch_companion.common
+package com.example.mw_watch_companion.notifications
+
 import java.nio.charset.StandardCharsets
+import com.example.mw_watch_companion.common.PhoneApp
 
 data class MWNotification(
     val appId: PhoneApp,
     val appName: String,
     val title: String,
-    val text: String
+    val text: String,
+    val msgId: String = ""
 ) {
     
     fun toUByteArray(): UByteArray {

@@ -4,6 +4,7 @@ import android.app.Notification
 import android.service.notification.NotificationListenerService
 import android.service.notification.StatusBarNotification
 import android.util.Log
+import kotlinx.coroutines.*
 
 import com.example.mw_watch_companion.BLE.BleConnectionManager
 import com.example.mw_watch_companion.common.*
@@ -11,7 +12,14 @@ import com.example.mw_watch_companion.notifications.NotificationManager
 
 class MWNotificationService : NotificationListenerService() {
 
-    val notificationManager = NotificationManager() 
+    private val serviceScope = CoroutineScope(Dispatchers.Default + SupervisorJob())
+    private lateinit var notificationManager: NotificationManager 
+
+    override fun onCreate() {
+        super.onCreate()
+        Log.i("Notification Service", "Created service")
+        notificationManager = NotificationManager(serviceScope) 
+    }
 
     override fun onNotificationPosted(sbn: StatusBarNotification) {
         super.onNotificationPosted(sbn)
@@ -41,13 +49,9 @@ class MWNotificationService : NotificationListenerService() {
         super.onNotificationRemoved(sbn)
         Log.i("Notification Service", "Notification removed ${sbn.toString()}")
     }
-
-    override fun onCreate() {
-        Log.i("Notification Service", "Created service")
-    }
-
-    override fun onDestroy() {
-        Log.i("Notification Service", "Destroyed service")
-    }
     
+    override fun onDestroy() {
+        super.onDestroy()
+        serviceScope.cancel()
+    }
 }
