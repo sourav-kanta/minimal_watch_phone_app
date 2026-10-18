@@ -19,17 +19,22 @@ import io.flutter.plugin.common.EventChannel
 import io.flutter.plugin.common.MethodCall
 import io.flutter.plugin.common.MethodChannel
 import io.flutter.plugin.common.PluginRegistry
+import android.content.pm.PackageManager
 
 import com.example.mw_watch_companion.BLE.BleConnectionManager
+import com.example.mw_watch_companion.common.PermissionManager
 
 class BlePlugin: FlutterPlugin, MethodChannel.MethodCallHandler, EventChannel.StreamHandler,
-                 ActivityAware, PluginRegistry.ActivityResultListener {
+                 ActivityAware, PluginRegistry.ActivityResultListener,
+                 PluginRegistry.RequestPermissionsResultListener {
     private lateinit var methodChannel: MethodChannel
     private lateinit var eventChannel: EventChannel
     private var eventSink: EventChannel.EventSink? = null
     private var activity: Activity? = null
     private var pendingResult: MethodChannel.Result? = null
     private val COMPANION_REQ_CODE = 8998
+    private var permissionManager: PermissionManager? = null
+    private var pendingPermissionResult: MethodChannel.Result? = null
 
     override fun onAttachedToEngine(binding: FlutterPlugin.FlutterPluginBinding) {
         methodChannel = MethodChannel(binding.binaryMessenger, "com.example.mw_watch_companion/methods")
@@ -51,7 +56,40 @@ class BlePlugin: FlutterPlugin, MethodChannel.MethodCallHandler, EventChannel.St
                 disassociateOldDevices()
                 launchCompanionPicker()
             }
-
+            "requestStartupPermissions" -> {
+                if (activity == null || permissionManager == null) {
+                    result.error(
+                        "NO_ACTIVITY",
+                        "Activity unavailable",
+                        null
+                    )
+                    return
+                }
+                if (pendingPermissionResult != null) {
+                    result.error(
+                        "REQUEST_IN_PROGRESS",
+                        "A permission request is already in progress",
+                        null
+                    )
+                    return
+                }
+                pendingPermissionResult = result
+                permissionManager!!.requestStartupPermissions()
+                if (permissionManager!!.hasLocationPermission() &&
+                    permissionManager!!.hasBluetoothConnectPermission()
+                ) {
+                    pendingPermissionResult?.success(
+                        mapOf(
+                            "location" to true,
+                            "bluetoothConnect" to true,
+                            "fineLocation" to permissionManager!!.hasPermission(
+                                android.Manifest.permission.ACCESS_FINE_LOCATION
+                            )
+                        )
+                    )
+                    pendingPermissionResult = null
+                }
+            }
             else -> result.notImplemented()
         }
     }
@@ -132,10 +170,69 @@ class BlePlugin: FlutterPlugin, MethodChannel.MethodCallHandler, EventChannel.St
         return false
     }
 
-    override fun onAttachedToActivity(b: ActivityPluginBinding) { activity = b.activity; b.addActivityResultListener(this) }
-    override fun onDetachedFromActivityForConfigChanges() { activity = null }
-    override fun onReattachedToActivityForConfigChanges(b: ActivityPluginBinding) { activity = b.activity; b.addActivityResultListener(this) }
-    override fun onDetachedFromActivity() { activity = null }
+    override fun onRequestPermissionsResult(
+        requestCode: Int,
+        permissions: Array<out String>,
+        grantResults: IntArray
+    ): Boolean {
+        if (requestCode != PermissionManager.REQUEST_CODE) {
+            return false
+        }
+
+        val manager = permissionManager
+        if (manager == null) {
+            pendingPermissionResult?.error(
+                "NO_ACTIVITY",
+                "Activity unavailable",
+                null
+            )
+            pendingPermissionResult = null
+            return true
+        }
+        pendingPermissionResult?.success(
+            mapOf(
+                "location" to manager.hasLocationPermission(),
+                "fineLocation" to manager.hasPermission(
+                    android.Manifest.permission.ACCESS_FINE_LOCATION
+                ),
+                "bluetoothConnect" to manager.hasBluetoothConnectPermission()
+            )
+        )
+        pendingPermissionResult = null
+        return true
+    }
+
+    override fun onAttachedToActivity(b: ActivityPluginBinding) {
+        activity = b.activity
+        permissionManager = PermissionManager(b.activity)
+        b.addActivityResultListener(this)
+        b.addRequestPermissionsResultListener(this)
+    }
+
+    override fun onDetachedFromActivityForConfigChanges() {
+        activity = null
+        permissionManager = null
+    }
+
+    override fun onReattachedToActivityForConfigChanges(b: ActivityPluginBinding) {
+        activity = b.activity
+        permissionManager = PermissionManager(b.activity)
+        b.addActivityResultListener(this)
+        b.addRequestPermissionsResultListener(this)
+    }
+
+    override fun onDetachedFromActivity() {
+         pendingPermissionResult?.error(
+            "NO_ACTIVITY",
+            "Activity detached during permission request",
+            null
+        )
+        pendingPermissionResult = null
+        activity = null
+        permissionManager = null
+    }
+
+
     override fun onListen(a: Any?, e: EventChannel.EventSink?) { eventSink = e }
     override fun onCancel(a: Any?) { eventSink = null }
     override fun onDetachedFromEngine(b: FlutterPlugin.FlutterPluginBinding) {

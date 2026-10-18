@@ -1,12 +1,10 @@
 import 'package:flutter/material.dart';
 
 import 'theme/app_theme.dart';
-import 'ui/pages/home_page.dart';
+import 'ui/pages/startup_page.dart';
 
 void main() {
-  runApp(
-    const MinimalWatchApp(),
-  );
+  runApp(const MinimalWatchApp());
 }
 
 class MinimalWatchApp extends StatelessWidget {
@@ -21,7 +19,7 @@ class MinimalWatchApp extends StatelessWidget {
 
       theme: AppTheme.buildTheme(),
 
-      home: const HomePage(),
+      home: const StartupPage(),
     );
   }
 }
