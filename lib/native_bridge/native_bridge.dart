@@ -25,6 +25,17 @@ class NativeBleClient {
     }
   }
 
+  static Future<void> startNavigation() async {
+    await _method.invokeMethod('startNavigation', {
+      'latitude': 22.491874,
+      'longitude': 22.491874,
+    });
+  }
+
+  static Future<void> stopNavigation() async {
+    await _method.invokeMethod('stopNavigation');
+  }
+
   static Future<String?> pairAndAssociateNewDevice() async {
     try {
       final String? macAddress = await _method.invokeMethod(

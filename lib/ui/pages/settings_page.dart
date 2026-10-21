@@ -33,10 +33,22 @@ class SettingsPage extends StatelessWidget {
             title: 'Version',
             value: '0.1.0',
           ),
+
           SettingActionRow(
             title: 'New Device',
             onClick: NativeBleClient.pairAndAssociateNewDevice,
             value: 'Connect',
+          ),
+          
+          SettingActionRow(
+            title: 'Navigation',
+            onClick: NativeBleClient.startNavigation,
+            value: 'Start',
+          ),
+          SettingActionRow(
+            title: 'Navigation',
+            onClick: NativeBleClient.stopNavigation,
+            value: 'Stop',
           ),
         ],
       ),

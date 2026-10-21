@@ -9,9 +9,10 @@ import android.util.Log
 import java.util.UUID
 
 import com.example.mw_watch_companion.common.NotificationForwarder
+import com.example.mw_watch_companion.common.MapFrameForwarder
 
 @SuppressLint("MissingPermission")
-object BleConnectionManager: NotificationForwarder{
+object BleConnectionManager: NotificationForwarder, MapFrameForwarder{
     var connectionState = BleConnectionState.DISCONNECTED
         private set 
     @Volatile
@@ -244,6 +245,12 @@ object BleConnectionManager: NotificationForwarder{
 
     override fun forwardNotification(notification: UByteArray) {
         dataChannel.acceptNotification(notification)
+    }
+
+    override fun forwardMapFrames(frame: UByteArray) {
+        if(connectionState == BleConnectionState.READY) {
+            dataChannel.acceptMapFrame(frame)
+        }
     }
 
     private fun disconnectDevice(gatt: BluetoothGatt?) {

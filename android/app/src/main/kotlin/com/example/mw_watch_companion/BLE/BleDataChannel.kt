@@ -20,6 +20,8 @@ class BleDataChannel (){
     private val rxParser = BlePacketParser(rxQueue)
     private var txburstManager = BleBurstManager(BleServiceParams.connInterval, txIngestor) 
 
+    private val multiPacketGenerator = BleMultiPacketGenerator()
+
     init {
         start()
         pause()
@@ -76,6 +78,25 @@ class BleDataChannel (){
         val hdr = BleMessageHeader.parseHeader(hdrBytes)?: return 
         val msg = BleMessage(hdr).apply { this.payload = notification }
         txQueue.push(msg)
+    }
+
+    @Synchronized
+    fun acceptMapFrame(payload: UByteArray) {
+        if (payload.isEmpty()) {
+            Log.w("BleDataChannel", "Ignoring empty map payload")
+            return
+        }
+        val packets = multiPacketGenerator.generate(
+            opcode = BleOpCode.MAPFRAME_SEND.raw,
+            reqApp = 0u,
+            payload = payload
+        ) ?: run {
+            Log.e("BleDataChannel", "Failed to generate multichunk map frame")
+            return
+        }
+        for (packet in packets) {
+            txQueue.push(packet)
+        }
     }
 
 }
