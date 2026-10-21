@@ -8,7 +8,9 @@ object BleServiceParams {
     val TX_CHAR_UUID = UUID.fromString("87654321-4321-8765-4321-876543210988")
     const val maxMTU = 247
     const val msgHeaderMagic: UByte = 0xA5u
-    const val maxMsgPayloadSize: Int = 256
+    const val multipacketHeaderMagic: UByte = 0xB9u
+    const val maxMsgPayloadSize: Int = 250
+    const val maxMultiMsgPayloadSize: Int = 2048
     val connInterval = (820L*1.25).toLong()
 }
 
@@ -42,7 +44,9 @@ enum class BleOpCode(val raw: UByte) {
     TIME_UPDATE_REQ(0x01u),
     WEATHER_REQ(0x02u),
     DATED_WEATHER_REQ(0x03u),
-    NOTIFICATION_SEND(0x04u);
+    NOTIFICATION_SEND(0x04u),
+    MAPFRAME_SEND(0x05u),
+    MULTICHUNK_SEND(0xF0u);
 
     companion object {
         fun fromUByte(value: UByte): BleOpCode? {

@@ -3,6 +3,7 @@
     <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CONNECTED_DEVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
     <uses-permission android:name="android.permission.REQUEST_COMPANION_RUN_IN_BACKGROUND" />
     <uses-permission android:name="android.permission.REQUEST_COMPANION_USE_DATA_IN_BACKGROUND" />
     <uses-permission android:name="android.permission.REQUEST_OBSERVE_COMPANION_DEVICE_PRESENCE" />
@@ -28,7 +29,10 @@
                 <action android:name="android.service.notification.NotificationListenerService" />
             </intent-filter> 
         </service>
-            
+        <service
+            android:name=".services.NavigationService"
+            android:exported="false"
+            android:foregroundServiceType="location" />
         <service
             android:name=".services.MWCompanionService"
             android:exported="true"

@@ -19,10 +19,11 @@ import io.flutter.plugin.common.EventChannel
 import io.flutter.plugin.common.MethodCall
 import io.flutter.plugin.common.MethodChannel
 import io.flutter.plugin.common.PluginRegistry
-import android.content.pm.PackageManager
+import androidx.core.content.ContextCompat
 
 import com.example.mw_watch_companion.BLE.BleConnectionManager
 import com.example.mw_watch_companion.common.PermissionManager
+import com.example.mw_watch_companion.services.NavigationService
 
 class BlePlugin: FlutterPlugin, MethodChannel.MethodCallHandler, EventChannel.StreamHandler,
                  ActivityAware, PluginRegistry.ActivityResultListener,
@@ -89,6 +90,51 @@ class BlePlugin: FlutterPlugin, MethodChannel.MethodCallHandler, EventChannel.St
                     )
                     pendingPermissionResult = null
                 }
+            }
+            "startNavigation" -> {
+                val currentActivity = activity
+                if (currentActivity == null) {
+                    result.error("NO_ACTIVITY", "Activity unavailable", null)
+                    return
+                }
+                val args = call.arguments as? Map<*, *>
+                val latitude = (args?.get("latitude") as? Number)?.toDouble()
+                val longitude = (args?.get("longitude") as? Number)?.toDouble()
+
+                if (latitude == null || longitude == null ||
+                    !latitude.isFinite() || !longitude.isFinite() ||
+                    latitude !in -90.0..90.0 ||
+                    longitude !in -180.0..180.0
+                ) {
+                    result.error("INVALID_DESTINATION", "Invalid destination coordinates", null)
+                    return
+                }
+                val intent = Intent(currentActivity, NavigationService::class.java).apply {
+                    action = NavigationService.ACTION_START
+                    putExtra(NavigationService.EXTRA_DEST_LAT, latitude)
+                    putExtra(NavigationService.EXTRA_DEST_LON, longitude)
+                }
+
+                try {
+                    ContextCompat.startForegroundService(currentActivity, intent)
+                    result.success(null)
+                } catch (e: SecurityException) {
+                    result.error("NAVIGATION_PERMISSION", e.message, null)
+                } catch (e: Exception) {
+                    result.error("NAVIGATION_START_FAILED", e.message, null)
+                }
+            }
+            "stopNavigation" -> {
+                val currentActivity = activity
+                if (currentActivity == null) {
+                    result.error("NO_ACTIVITY", "Activity unavailable", null)
+                    return
+                }
+                val intent = Intent(currentActivity, NavigationService::class.java).apply {
+                    action = NavigationService.ACTION_STOP
+                }
+                currentActivity.startService(intent)
+                result.success(null)
             }
             else -> result.notImplemented()
         }

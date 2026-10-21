@@ -4,9 +4,10 @@ import android.Manifest
 import android.app.Activity
 import android.content.pm.PackageManager
 import android.os.Build
+import android.content.Context
 import androidx.core.content.ContextCompat
 
-class PermissionManager(private val activity: Activity) {
+class PermissionManager(private val context: Context) {
 
     companion object {
         const val REQUEST_CODE = 8999
@@ -20,7 +21,7 @@ class PermissionManager(private val activity: Activity) {
         }
 
         return ContextCompat.checkSelfPermission(
-            activity,
+            context,
             permission
         ) == PackageManager.PERMISSION_GRANTED
     }
@@ -35,11 +36,10 @@ class PermissionManager(private val activity: Activity) {
     }
 
     fun requestStartupPermissions() {
+        val activity = context as? Activity ?: return
         val permissions = mutableListOf<String>()
 
-        if (!hasPermission(Manifest.permission.ACCESS_FINE_LOCATION) ||
-            !hasPermission(Manifest.permission.ACCESS_COARSE_LOCATION)
-        ) {
+        if (!hasLocationPermission()) {
             permissions.add(Manifest.permission.ACCESS_FINE_LOCATION)
             permissions.add(Manifest.permission.ACCESS_COARSE_LOCATION)
         }
