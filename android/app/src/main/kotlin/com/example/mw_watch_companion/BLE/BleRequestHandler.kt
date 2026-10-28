@@ -13,6 +13,8 @@ import kotlin.math.roundToInt
 
 import com.example.mw_watch_companion.common.DataIngestor
 import com.example.mw_watch_companion.common.DataQueue
+import com.example.mw_watch_companion.common.Events
+import com.example.mw_watch_companion.common.Event
 
 object BleConfig {
     const val TARGET_LATITUDE = 22.4954988
@@ -44,6 +46,7 @@ class BleRequestHandler(private val targetQueue: DataQueue<BleMessage>) : DataIn
             BleOpCode.TIME_UPDATE_REQ -> handleTimeUpdate(message)
             BleOpCode.WEATHER_REQ -> handleWeatherUpdate(message)
             BleOpCode.DATED_WEATHER_REQ -> handleDatedWeatherQuery(message)
+            BleOpCode.MAPFRAME_SEND -> handleNavigation(message)
             else -> {
                 Log.e("BleRequestHandler", "Unsupported OpCode (0x%02X). Dropping message.".format(message.hdr.opCode.toInt()))
             }
@@ -54,6 +57,32 @@ class BleRequestHandler(private val targetQueue: DataQueue<BleMessage>) : DataIn
         val header = BleMessageHeader(opCode.raw, reqApp, payload.size.toUByte())
         val response = BleMessage(header).apply { this.payload = payload }
         targetQueue.push(response)
+    }
+
+    private fun handleNavigation(m: BleMessage) {
+        if (m.payload.isEmpty()) {
+            Log.w("BleRequestHandler", "Empty navigation command")
+            return
+        }
+
+        when (m.payload[0].toInt()) {
+            0x01 -> {
+                if (!Events.bus.tryPublish(Event.NavigationStart)) {
+                    Log.w("BleRequestHandler", "Failed to publish NavigationStart")
+                }
+            }
+            0x02 -> {
+                if (!Events.bus.tryPublish(Event.NavigationEnd)) {
+                    Log.w("BleRequestHandler", "Failed to publish NavigationEnd")
+                }
+            }
+            else -> {
+                Log.w(
+                    "BleRequestHandler",
+                    "Unknown navigation command: 0x%02X".format(m.payload[0].toInt() and 0xFF)
+                )
+            }
+        }
     }
 
     private fun handleTimeUpdate(m: BleMessage) {

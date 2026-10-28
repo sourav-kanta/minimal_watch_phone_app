@@ -9,13 +9,15 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 import java.util.concurrent.atomic.AtomicBoolean
 
-import com.example.mw_watch_companion.BLE.BleConnectionManager
+import com.example.mw_watch_companion.common.Event
+import com.example.mw_watch_companion.common.Events
 
 class OSMBackend(
     private val destinationLatitude: Double,
     private val destinationLongitude: Double
 ) {
 
+    private val navigationActive = AtomicBoolean(false)
     private val mapFetch = MapFetch()
     @Volatile
     private var cache: MapCache? = null
@@ -23,6 +25,16 @@ class OSMBackend(
     private val fetchInProgress = AtomicBoolean(false)
     private val viewportRenderer = ViewportRenderer()
     private val viewSerializer = ViewSerializer()
+
+    init {
+        Events.bus.subscribe<Event.NavigationStart>(navigationScope) {
+            navigationActive.set(true)
+        }
+
+        Events.bus.subscribe<Event.NavigationEnd>(navigationScope) {
+            navigationActive.set(false)
+        }
+    }
 
     fun refreshData(latitude: Double, longitude: Double, bearingDegrees: Float?) {
         val currentCache = cache
@@ -43,7 +55,11 @@ class OSMBackend(
             // outView.printView()
             // Serialize and queue packet
             val blob = viewSerializer.serialize(outView)
-            BleConnectionManager.forwardMapFrames(blob)
+            if (navigationActive.get()) {
+                if (!Events.bus.tryPublish(Event.MapFrameSend(blob))) {
+                    Log.w("OSMBackend", "Event bus rejected map frame")
+                }
+            }
         }
         if(!refreshNeeded) return
         if (!fetchInProgress.compareAndSet(false, true)) {

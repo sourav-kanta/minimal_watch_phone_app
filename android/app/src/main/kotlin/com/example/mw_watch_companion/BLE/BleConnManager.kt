@@ -7,12 +7,15 @@ import android.os.Handler
 import android.os.Looper
 import android.util.Log
 import java.util.UUID
-
-import com.example.mw_watch_companion.common.NotificationForwarder
-import com.example.mw_watch_companion.common.MapFrameForwarder
+import com.example.mw_watch_companion.common.Event
+import com.example.mw_watch_companion.common.Events
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 
 @SuppressLint("MissingPermission")
-object BleConnectionManager: NotificationForwarder, MapFrameForwarder{
+object BleConnectionManager {
+    @Volatile
     var connectionState = BleConnectionState.DISCONNECTED
         private set 
     @Volatile
@@ -24,6 +27,19 @@ object BleConnectionManager: NotificationForwarder, MapFrameForwarder{
     private val mainHandler = Handler(Looper.getMainLooper())
     private var dataChannel: BleDataChannel = BleDataChannel()
     private var appContext: Context? = null
+    private val eventScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+
+    init {
+        Events.bus.subscribe<Event.NotificationSend>(eventScope) { event ->
+            dataChannel.acceptNotification(event.payload)
+        }
+
+        Events.bus.subscribe<Event.MapFrameSend>(eventScope) { event ->
+            if (connectionState == BleConnectionState.READY) {
+                dataChannel.acceptMapFrame(event.payload)
+            }
+        }
+    }
     
     private val gattCallback = object : BluetoothGattCallback() {
         override fun onConnectionStateChange(gatt: BluetoothGatt, status: Int, newState: Int) {
@@ -240,16 +256,6 @@ object BleConnectionManager: NotificationForwarder, MapFrameForwarder{
             bluetoothGatt = null
             Log.i("BLE Manager", "State changed : ${connectionState.name} -> ${BleConnectionState.DISCONNECTED.name}")
             connectionState = BleConnectionState.DISCONNECTED
-        }
-    }
-
-    override fun forwardNotification(notification: UByteArray) {
-        dataChannel.acceptNotification(notification)
-    }
-
-    override fun forwardMapFrames(frame: UByteArray) {
-        if(connectionState == BleConnectionState.READY) {
-            dataChannel.acceptMapFrame(frame)
         }
     }
 
