@@ -1,8 +1,9 @@
 package com.example.mw_watch_companion.notifications
 
 import android.service.notification.StatusBarNotification
-import com.example.mw_watch_companion.BLE.BleConnectionManager
 import kotlinx.coroutines.*
+import com.example.mw_watch_companion.common.Events
+import com.example.mw_watch_companion.common.Event
 
 import android.util.Log
 
@@ -18,7 +19,9 @@ class NotificationManager (private val scope: CoroutineScope){
         // Push to pipeline
         val payload = processedNotification.toUByteArray()
         if(!deDuplicator.checkDuplicateAndUpdateCache(deDuplicator.generateCRC(payload))) {
-            BleConnectionManager.forwardNotification(payload)
+            if (!Events.bus.tryPublish(Event.NotificationSend(payload))) {
+                Log.w("NotificationManager", "Event bus rejected notification")
+            }
         }
         else {
             Log.i("NotificationManager", "Avoid pushing duplicate")
