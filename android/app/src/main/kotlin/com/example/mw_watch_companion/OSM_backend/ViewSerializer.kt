@@ -4,6 +4,7 @@ package com.example.mw_watch_companion.OSM_backend
 class ViewSerializer {
 
     private fun highwayCode(type: String): Int = when (type) {
+        "navigation_route" -> 0
         "motorway", "motorway_link" -> 1
         "trunk", "trunk_link" -> 2
         "primary", "primary_link" -> 3
@@ -14,7 +15,7 @@ class ViewSerializer {
         "service" -> 8
         "pedestrian", "footway", "path", "cycleway",
         "steps", "track", "bridleway" -> 9
-        else -> 0
+        else -> 10
     }
 
     fun serialize(view: View): UByteArray {
@@ -23,7 +24,7 @@ class ViewSerializer {
         val SEGMENT_SIZE = 5
         val segments = view.segments.filter {
             (it.start.x != it.end.x || it.start.y != it.end.y) &&
-            highwayCode(it.highwayType) in 1..5
+            highwayCode(it.highwayType) in 0..5
         }
         val output = UByteArray(segments.size * SEGMENT_SIZE)
         var offset = 0

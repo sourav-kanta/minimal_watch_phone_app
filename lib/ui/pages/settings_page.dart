@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../widgets/app_drawer.dart';
 import '../widgets/setting_row.dart';
 import '../widgets/setting_action_row.dart';
+import '../widgets/navigation_menu.dart';
 import '../../native_bridge/native_bridge.dart';
 
 class SettingsPage extends StatelessWidget {
@@ -12,12 +13,12 @@ class SettingsPage extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       drawer: const AppDrawer(),
-
+ 
       appBar: AppBar(
         title: const Text('Settings'),
       ),
 
-      body: Column(
+      body: ListView(
         children: [
           const SettingRow(
             title: 'Theme',
@@ -39,17 +40,8 @@ class SettingsPage extends StatelessWidget {
             onClick: NativeBleClient.pairAndAssociateNewDevice,
             value: 'Connect',
           ),
-          
-          SettingActionRow(
-            title: 'Navigation',
-            onClick: NativeBleClient.startNavigation,
-            value: 'Start',
-          ),
-          SettingActionRow(
-            title: 'Navigation',
-            onClick: NativeBleClient.stopNavigation,
-            value: 'Stop',
-          ),
+
+          const NavigationWidget(),
         ],
       ),
     );

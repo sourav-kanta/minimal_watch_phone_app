@@ -67,12 +67,12 @@ class BleRequestHandler(private val targetQueue: DataQueue<BleMessage>) : DataIn
 
         when (m.payload[0].toInt()) {
             0x01 -> {
-                if (!Events.bus.tryPublish(Event.NavigationStart)) {
+                if (!Events.bus.tryPublish(Event.NavigationStart(m.hdr.reqApp))) {
                     Log.w("BleRequestHandler", "Failed to publish NavigationStart")
                 }
             }
             0x02 -> {
-                if (!Events.bus.tryPublish(Event.NavigationEnd)) {
+                if (!Events.bus.tryPublish(Event.NavigationEnd(m.hdr.reqApp))) {
                     Log.w("BleRequestHandler", "Failed to publish NavigationEnd")
                 }
             }
