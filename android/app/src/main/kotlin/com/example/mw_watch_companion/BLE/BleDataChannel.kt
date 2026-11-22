@@ -81,14 +81,14 @@ class BleDataChannel (){
     }
 
     @Synchronized
-    fun acceptMapFrame(payload: UByteArray) {
+    fun acceptMapFrame(payload: UByteArray, watchApp: UByte) {
         if (payload.isEmpty()) {
             Log.w("BleDataChannel", "Ignoring empty map payload")
             return
         }
         val packets = multiPacketGenerator.generate(
             opcode = BleOpCode.MAPFRAME_SEND.raw,
-            reqApp = 0u,
+            reqApp = watchApp,
             payload = payload
         ) ?: run {
             Log.e("BleDataChannel", "Failed to generate multichunk map frame")

@@ -4,12 +4,14 @@ package com.example.mw_watch_companion.OSM_backend
 import kotlin.math.PI
 import kotlin.math.abs
 import kotlin.math.cos
-import kotlin.math.exp
 import kotlin.math.ln
 import kotlin.math.roundToInt
 import kotlin.math.sin
 import kotlin.math.tan
 
+// TODO: Handle bearing wraparound and 180-degree heading jumps.
+// Normalize bearing changes to the shortest angular difference and
+// consider smoothing heading transitions to avoid sudden map rotations
 class ViewportRenderer(
     private val zoomLevel: Int = 16,
     private val viewportWidth: Int = 128,
@@ -42,7 +44,8 @@ class ViewportRenderer(
     }
 
     fun render(
-        cache: MapCache,
+        cache: MapCache?,
+        route: List<RoadWay>?,
         latitude: Double,
         longitude: Double,
         bearingDegrees: Float
@@ -61,8 +64,12 @@ class ViewportRenderer(
         val sinBearing = sin(bearing)
 
         val segments = ArrayList<ViewRoadSegment>()
+        val roads = buildList {
+            cache?.let { addAll(it.roads) }
+            route?.let { addAll(it) }
+        }
 
-        for (road in cache.roads) {
+        for (road in roads) {
             var previous: ViewPoint? = null
 
             for (point in road.vertices) {

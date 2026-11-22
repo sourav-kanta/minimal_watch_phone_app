@@ -6,16 +6,21 @@ object Events {
 
 sealed interface Event {
     data class MapFrameSend(
-        val payload: UByteArray
+        val payload: UByteArray,
+        val reqApp: UByte
     ) : Event
 
     data class NotificationSend(
         val payload: UByteArray
     ) : Event
 
-    data object NavigationStart : Event
+    data class NavigationStart(
+        val reqApp: UByte
+    ) : Event
 
-    data object NavigationEnd : Event
+    data class NavigationEnd(
+        val reqApp: UByte
+    ) : Event
 
     data class Error(
         val source: String,

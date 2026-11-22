@@ -25,10 +25,13 @@ class NativeBleClient {
     }
   }
 
-  static Future<void> startNavigation() async {
+  static Future<void> startNavigation({
+    required double latitude,
+    required double longitude,
+  }) async {
     await _method.invokeMethod('startNavigation', {
-      'latitude': 22.491874,
-      'longitude': 22.491874,
+      'latitude': latitude,
+      'longitude': longitude,
     });
   }
 

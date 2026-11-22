@@ -1,12 +1,10 @@
 package com.example.mw_watch_companion.OSM_backend
 
 import android.util.Log
-import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
-import kotlinx.coroutines.launch
 import java.util.concurrent.atomic.AtomicBoolean
 
 import com.example.mw_watch_companion.common.Event
@@ -20,69 +18,46 @@ class OSMBackend(
     private val navigationActive = AtomicBoolean(false)
     private val mapFetch = MapFetch()
     @Volatile
-    private var cache: MapCache? = null
+    private var firmwareApp : UByte = 0u
     private val navigationScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
-    private val fetchInProgress = AtomicBoolean(false)
     private val viewportRenderer = ViewportRenderer()
     private val viewSerializer = ViewSerializer()
+    private val osmRouter = OSRMRouter(GeoPoint(destinationLatitude,destinationLongitude))
 
     init {
-        Events.bus.subscribe<Event.NavigationStart>(navigationScope) {
+        Events.bus.subscribe<Event.NavigationStart>(navigationScope) { event ->
+            firmwareApp = event.reqApp
             navigationActive.set(true)
         }
 
-        Events.bus.subscribe<Event.NavigationEnd>(navigationScope) {
-            navigationActive.set(false)
+        Events.bus.subscribe<Event.NavigationEnd>(navigationScope) { event->
+            if(event.reqApp == firmwareApp) {
+                navigationActive.set(false)
+            }
         }
     }
 
     fun refreshData(latitude: Double, longitude: Double, bearingDegrees: Float?) {
-        val currentCache = cache
-        val insideCache = currentCache != null &&
-                          mapFetch.containsLocation(currentCache, latitude, longitude)
-        val refreshNeeded = currentCache == null ||
-                            mapFetch.isRefreshNeeded(currentCache, latitude, longitude)
-
-        // Cache valid and pos within 3*3 grid
-        if (insideCache) {
-            // Start processing viewport
-            val outView = viewportRenderer.render(
-                cache = currentCache!!,
-                latitude = latitude,
-                longitude = longitude,
-                bearingDegrees = bearingDegrees ?: 0f
-            )
-            // outView.printView()
-            // Serialize and queue packet
-            val blob = viewSerializer.serialize(outView)
-            if (navigationActive.get()) {
-                if (!Events.bus.tryPublish(Event.MapFrameSend(blob))) {
-                    Log.w("OSMBackend", "Event bus rejected map frame")
-                }
+        val currentCache = mapFetch.getMapCache(latitude, longitude, navigationScope)
+        val routeRoadList = osmRouter.getRoute(GeoPoint(latitude, longitude), navigationScope)
+        if (currentCache == null && routeRoadList == null) return
+        // Start processing viewport
+        val outView = viewportRenderer.render(
+            cache = currentCache,
+            route = routeRoadList,
+            latitude = latitude,
+            longitude = longitude,
+            bearingDegrees = bearingDegrees ?: 0f
+        )
+        // outView.printView()
+        // Serialize and queue packet
+        val blob = viewSerializer.serialize(outView)
+        if (navigationActive.get()) {
+            if (!Events.bus.tryPublish(Event.MapFrameSend(blob, firmwareApp))) {
+                Log.i("OSMBackend", "Event bus rejected map frame")
             }
         }
-        if(!refreshNeeded) return
-        if (!fetchInProgress.compareAndSet(false, true)) {
-            // A request has already been fired
-            return
-        }
 
-        // Trigger a refresh and dont render anything
-        // Next refresh will pickup the new cache
-        navigationScope.launch {
-            try {
-                val newCache = mapFetch.fetch(latitude, longitude)
-                // Publish the complete cache only after a successful fetch.
-                cache = newCache
-                Log.i("OSMBackend", "Map cache refreshed")
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: Exception) {
-                Log.e("OSMBackend", "Map refresh failed", e)
-            } finally {
-                fetchInProgress.set(false)
-            }
-        }
     }
 
     fun close() {

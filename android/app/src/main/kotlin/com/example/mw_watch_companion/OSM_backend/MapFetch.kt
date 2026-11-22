@@ -1,5 +1,10 @@
 package com.example.mw_watch_companion.OSM_backend
 
+import android.util.Log
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.launch
+import java.util.concurrent.atomic.AtomicBoolean
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
@@ -27,6 +32,9 @@ class MapFetch(
             "https://overpass-api.de/api/interpreter"
     }
 
+    @Volatile
+    private var cache: MapCache? = null
+    private val fetchInProgress = AtomicBoolean(false)
     private val metersPerPixel =
         (2.0 * PI * EARTH_RADIUS) / (256.0 * (1 shl zoomLevel))
 
@@ -79,7 +87,58 @@ class MapFetch(
         GeoPoint(bounds.south, bounds.west)
     )
 
-    suspend fun fetch(
+    fun getMapCache(
+        lat: Double,
+        lon: Double,
+        navigationScope: CoroutineScope
+    ): MapCache? {
+        require(lat.isFinite() && lat in -90.0..90.0)
+        require(lon.isFinite() && lon in -180.0..180.0)
+        val currentCache = cache
+
+        val insideCache = currentCache != null &&
+            containsLocation(currentCache, lat, lon)
+
+        val refreshNeeded = currentCache == null ||
+            isRefreshNeeded(currentCache, lat, lon)
+
+        if (insideCache) {
+            if (refreshNeeded) {
+                refreshCache(lat, lon, navigationScope)
+            }
+            return currentCache
+        }
+
+        if (refreshNeeded) {
+            refreshCache(lat, lon, navigationScope)
+        }
+
+        return null
+    }
+
+    private fun refreshCache(
+        latitude: Double,
+        longitude: Double,
+        scope: CoroutineScope
+    ) {
+        if (!fetchInProgress.compareAndSet(false, true)) return
+
+        scope.launch {
+            try {
+                val newCache = fetch(latitude, longitude)
+                Log.i("MapFetch", "Map cache refreshed")
+                cache = newCache
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Log.e("MapFetch", "Map refresh failed", e)
+            } finally {
+                fetchInProgress.set(false)
+            }
+        }
+    }
+
+    private suspend fun fetch(
         latitude: Double,
         longitude: Double
     ): MapCache = withContext(Dispatchers.IO) {
@@ -143,7 +202,7 @@ class MapFetch(
         }
     }
 
-    fun isRefreshNeeded(
+    private fun isRefreshNeeded(
         cache: MapCache,
         latitude: Double,
         longitude: Double
@@ -156,8 +215,8 @@ class MapFetch(
         val centerX = projectX(cache.center.longitude)
         val centerY = projectY(cache.center.latitude)
 
-        val safeHalfWidth = viewportWidth * 1.5 * metersPerPixel
-        val safeHalfHeight = viewportHeight * 1.5 * metersPerPixel
+        val safeHalfWidth = (cacheWidth / 2.0 - viewportWidth) * metersPerPixel
+        val safeHalfHeight = (cacheHeight / 2.0 - viewportHeight) * metersPerPixel
 
         // A wrapped longitude needs special handling near the antimeridian.
         // Unimplemented for now. TODO in future
@@ -167,7 +226,7 @@ class MapFetch(
             abs(currentY - centerY) >= safeHalfHeight
     }
 
-    fun containsLocation(
+    private fun containsLocation(
         cache: MapCache,
         latitude: Double,
         longitude: Double

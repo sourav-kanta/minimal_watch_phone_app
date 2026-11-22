@@ -36,7 +36,7 @@ object BleConnectionManager {
 
         Events.bus.subscribe<Event.MapFrameSend>(eventScope) { event ->
             if (connectionState == BleConnectionState.READY) {
-                dataChannel.acceptMapFrame(event.payload)
+                dataChannel.acceptMapFrame(event.payload, event.reqApp)
             }
         }
     }
@@ -167,7 +167,12 @@ object BleConnectionManager {
         appContext = context.applicationContext
 
         mainHandler.post {
-            bluetoothGatt = device.connectGatt(context, false, gattCallback)
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M) {
+                bluetoothGatt = device.connectGatt(context, false, gattCallback, BluetoothDevice.TRANSPORT_LE)
+            }
+            else {
+                bluetoothGatt = device.connectGatt(context, false, gattCallback)
+            }
         }
     }
 
@@ -196,7 +201,14 @@ object BleConnectionManager {
                 val delayMs = (Math.pow(2.0, retryCount.toDouble()) * 1000).toLong()
                 mainHandler.postDelayed({
                     if (connectionState == BleConnectionState.DISCONNECTED) {
-                        bluetoothGatt = device.connectGatt(currentContext, false, gattCallback)
+                        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M) {
+                            bluetoothGatt = device.connectGatt(
+                                currentContext, false, gattCallback,
+                                BluetoothDevice.TRANSPORT_LE
+                            )
+                        } else {
+                            bluetoothGatt = device.connectGatt(currentContext, false, gattCallback)
+                        }
                     }
                 }, delayMs)
             }
